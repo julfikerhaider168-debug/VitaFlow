@@ -1,0 +1,62 @@
+
+name: Android Build and Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Extract Android project
+        run: unzip -q VitaFlow-Android-Project.zip -d extracted
+
+      - name: Verify project files
+        working-directory: extracted/VitaFlowProject
+        run: |
+          chmod +x gradlew
+          python3 tools/verify_project.py
+
+      - name: Build debug APK
+        working-directory: extracted/VitaFlowProject
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Run unit tests
+        if: always()
+        working-directory: extracted/VitaFlowProject
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Run Android lint
+        if: always()
+        working-directory: extracted/VitaFlowProject
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VitaFlow-debug-APK
+          path: extracted/VitaFlowProject/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 7
